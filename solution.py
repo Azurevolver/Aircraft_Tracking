@@ -10,7 +10,7 @@ from geographiclib.geodesic import Geodesic
 import math
 
 
-def analyze_aircraft_data(file_name: str, update_interval=1):
+def analyze_aircraft_data(file_name: str, update_interval=5):
     if file_name is "" or file_name is None:
         raise ValueError("file does not exist")
 
@@ -19,9 +19,9 @@ def analyze_aircraft_data(file_name: str, update_interval=1):
         end_time = None
         time_gap = None
         data_in_interval = []
-        colnames = ['TIME', '# Craft', 'Fastest (kts)', 'Highest (ft)', 'Msgs/Sec']
-        result_df = pd.DataFrame(columns=colnames)
-
+        result_col_names = ['TIME', '# Craft', 'Fastest (kts)', 'Highest (ft)', 'Msgs/Sec']
+        result_df = pd.DataFrame(columns=result_col_names)
+        count = 0
         # read line by line
         for line in input_file:
             current_line_list = line.split(',')
@@ -40,13 +40,12 @@ def analyze_aircraft_data(file_name: str, update_interval=1):
             time_interval = (end_time - start_time).total_seconds()
             if time_interval >= update_interval * 60:
                 print(end_time)
-                print("------ data_in_interval ------")
                 # TODO: Output CURRENT and CUMULATIVE result
 
                 time_col = end_time.strftime("%m/%d %H:%M:%S")
-                print('time_col = ', time_col)
-                # start_time = None
-                # end_time = None
+                # reset start and end time
+                start_time = None
+                end_time = None
 
                 # init the pandas data frame
                 col_names = ['DateLogged', 'TimeLogged', 'AircraftHex', 'Altitude', 'GroundSpeed', 'Latitude', 'Longitude']
@@ -54,28 +53,27 @@ def analyze_aircraft_data(file_name: str, update_interval=1):
 
                 # craft & Fastest
                 craft_no_col = len(data_frame.groupby('AircraftHex').agg(['count']))
-                print('craft_no_col = ', craft_no_col)
 
                 # fastest
                 fastest_col = get_max_by('GroundSpeed', data_frame.groupby(['AircraftHex'])['GroundSpeed'].max().reset_index())
-                print('fastest_col = ', fastest_col)
 
                 # Highest
                 highest_col = get_max_by('Altitude', data_frame.groupby(['AircraftHex'])['Altitude'].max().reset_index())
-                print('highest_col = ', highest_col)
 
                 # Msgs / Sec
                 msg_per_sec_col = round(data_frame.shape[0] / time_interval, 1)
-                print('data_frame.shape[0] = ', data_frame.shape[0])
-                print('time_interval = ', time_interval)
-                print(msg_per_sec_col)
 
-
-                result_df.loc[0] = [time_col, craft_no_col, fastest_col, highest_col, msg_per_sec_col]
+                new_df = pd.DataFrame(columns=result_col_names)
+                new_df.loc[0] = [time_col, craft_no_col, fastest_col, highest_col, msg_per_sec_col]
+                result_df = pd.concat([result_df, new_df])
 
                 print(result_df)
+                print('----------------------------------')
 
-                break
+                if count > 1:
+                    break
+
+                count += 1
 
 
 def get_max_by(type: str, df: pd.DataFrame) -> str:
