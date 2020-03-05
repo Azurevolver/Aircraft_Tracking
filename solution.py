@@ -4,10 +4,8 @@ NetId: ycchen4
 """
 
 import pandas as pd
-import numpy as np
 from datetime import datetime
 from geographiclib.geodesic import Geodesic
-import math
 
 
 def analyze_aircraft_data(file_name: str, update_interval=5):
@@ -19,8 +17,10 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
         end_time = None
         time_gap = None
         data_in_interval = []
-        result_col_names = ['TIME', '# Craft', 'Fastest (kts)', 'Highest (ft)', 'Msgs/Sec']
-        result_df = pd.DataFrame(columns=result_col_names)
+        current_result_col_names = ['TIME', '# Craft', 'Fastest (kts)', 'Highest (ft)', 'Msgs/Sec']
+        current_result_df = pd.DataFrame(columns=current_result_col_names)
+        cumulative_result_df = pd.DataFrame(columns=['#Craft', 'LongestTrack', '(nm)'])
+
         count = 0
         # read line by line
         for line in input_file:
@@ -40,11 +40,11 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
             time_interval = (end_time - start_time).total_seconds()
             if time_interval >= update_interval * 60:
                 print(end_time)
-                # TODO: Output CURRENT and CUMULATIVE result
+                """ CURRENT RESULTS """
 
                 time_col = end_time.strftime("%m/%d %H:%M:%S")
                 # reset start and end time
-                start_time = None
+                start_time = end_time
                 end_time = None
 
                 # init the pandas data frame
@@ -63,14 +63,18 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 # Msgs / Sec
                 msg_per_sec_col = round(data_frame.shape[0] / time_interval, 1)
 
-                new_df = pd.DataFrame(columns=result_col_names)
+                new_df = pd.DataFrame(columns=current_result_col_names)
                 new_df.loc[0] = [time_col, craft_no_col, fastest_col, highest_col, msg_per_sec_col]
-                result_df = pd.concat([result_df, new_df])
+                current_result_df = pd.concat([current_result_df, new_df])
 
-                print(result_df)
+                print(current_result_df)
                 print('----------------------------------')
 
-                if count > 1:
+                """ CUMULATIVE RESULTS """
+                data_frame.groupby(['AircraftHex']).apply(get_distance)
+                # cumulative_result_df = pd.concat([cumulative_result_df, current_distance_df])
+
+                if count > 0:
                     break
 
                 count += 1
@@ -104,18 +108,36 @@ def get_datetime_from_string(date_string: str) -> datetime:
     return datetime_obj
 
 
+def get_distance(df: pd.DataFrame) -> pd.DataFrame:
+    df = df[(df['Latitude'] != '') & (df['Longitude'] != '')]
+    if df.empty:
+        return
+
+    prev_lat = None
+    prev_lon = None
+    distance_list = []
+    for index, row in df.iterrows():
+        if prev_lat is None and prev_lon is None:
+            prev_lat = float(row['Latitude'])
+            prev_lon = float(row['Longitude'])
+            distance_list.append(0.0)
+            continue
+
+        current_lat = float(row['Latitude'])
+        current_long = float(row['Longitude'])
+        distance = calculate_the_distance(prev_lat, prev_lon, current_lat, current_long)
+        prev_lat = current_lat
+        prev_lon = current_long
+        distance_list.append(distance)
+
+    df['Distance'] = distance_list
+    # print(df.groupby(['AircraftHex'])['Distance'].sum())
+    return df.groupby(['AircraftHex'])['Distance'].sum().reset_index()
+
+
 def calculate_the_distance(last_latitude: float, last_longitude: float, current_latitude: float, current_longitude: float) -> float:
-    if is_valid(last_latitude) and is_valid(last_longitude) and is_valid(current_latitude) and is_valid(current_longitude):
-        geod = Geodesic.WGS84
-        distance = round(
-        geod.Inverse(last_latitude, last_longitude, current_latitude, current_longitude)['s12'] / 1852.0, 2)
-
-    return 0.0
-
-
-def is_valid(f: float):
-    if math.isnan(f) or f is not None:
-        return True
+    geod = Geodesic.WGS84
+    return round(geod.Inverse(last_latitude, last_longitude, current_latitude, current_longitude)['s12'] / 1852.0, 8)
 
 
 if __name__ == '__main__':
