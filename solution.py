@@ -26,7 +26,6 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
         start_time = None
         end_time = None
         data_in_interval = []
-        total_number_of_aircraft = 0
         cumulative_df_col_name = ['AircraftHex', 'Total_Distance']
         cumulative_result_df = pd.DataFrame(columns=['AircraftHex', 'Total_Distance'])
         final_result_col_names = ['TIME', '# Craft', 'Fastest', '(kts)', 'Highest', '(ft)', 'Msgs/Sec', '#Craft', 'LongestTrack', ' (nm)']
@@ -81,9 +80,6 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 msg_per_sec_col = round(current_result_df.shape[0] / time_interval, 1)
 
                 """CUMULATIVE RESULTS"""
-                # -------- number of aircraft --------
-                total_number_of_aircraft = 0
-
                 # -------- LongestTrack --------
                 temp_df = current_result_df[['AircraftHex', 'Latitude', 'Longitude']]
                 temp_df = temp_df[(temp_df['Latitude'] != '') & (temp_df['Longitude'] != '')]
@@ -91,7 +87,6 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 distance_sum_df = temp_df.groupby(['AircraftHex']).apply(shift_sum).reset_index()
                 distance_sum_df.columns = cumulative_df_col_name
                 distance_sum_df = distance_sum_df.sort_values(by=['Total_Distance'], ascending=False)
-                # print(distance_sum_df)
 
                 if cumulative_result_df.empty:
                     cumulative_result_df = distance_sum_df
@@ -103,13 +98,16 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 longest_aircraft_1 = longest_aircraft[0]
                 longest_aircraft_2 = str(round(longest_aircraft[1], 1))
 
-                # prepare output data frame
+                # -------- total number of aircraft --------
                 total_number_of_aircraft = cumulative_result_df.shape[0]
+
+                # prepare output data frame
                 current_print_list = [time_col, craft_no_col, fastest_col_1, fastest_col_2, highest_col_1, highest_col_2, msg_per_sec_col, total_number_of_aircraft, longest_aircraft_1, longest_aircraft_2]
                 current_print_series = pd.Series(current_print_list, index=print_df.columns)
                 print_df = print_df.append(current_print_series, ignore_index=True)
 
                 if count == 0:
+                    print("***************** CURRENT RESULTS ******************************* | ******* CUMULATIVE RESULTS *******")
                     title = "\t"*2+"TIME"+"\t"*1+"# Craft Fastest (kts)"+"\t"*1+"Highest (ft)"+"\t"*1+"Msgs/Sec"+"\t"*1+"#Craft"+"\t"*1+"LongestTrack (nm)"
                     print(title)
 
@@ -122,10 +120,6 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 print(outputstring)
                 count += 1
 
-                # if count > 2:
-                #     write_to_file(print_df, file_name[5:18])
-                #     return
-
         write_to_file(print_df, file_name[5:18])
 
 
@@ -135,7 +129,9 @@ def write_to_file(output_df: pd.DataFrame, file: str):
     :param output_df: the output dataframe
     :return: None
     """
-    output_str = "***************** CURRENT RESULTS ******************* | ******* CUMULATIVE RESULTS *******\n"
+    output_str = "Author: Alan Chen\n"
+    output_str += "Net Id: ycchen4\n"
+    output_str += "***************** CURRENT RESULTS ******************* | ******* CUMULATIVE RESULTS *******\n"
     output_str += output_df.to_string(index=False)
     out_put_title = "aircraft_analysis_result_"+file+".txt"
     with open(out_put_title, 'w') as output_file:

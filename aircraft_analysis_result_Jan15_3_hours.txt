@@ -1,3 +1,5 @@
+Author: Alan Chen
+Net Id: ycchen4
 ***************** CURRENT RESULTS ******************* | ******* CUMULATIVE RESULTS *******
            TIME # Craft Fastest (kts) Highest    (ft)  Msgs/Sec #Craft LongestTrack   (nm)
  01/15 22:46:38      58  A96C96   606  A82298   62000     194.3     46       AD61B4   49.7
