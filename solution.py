@@ -122,16 +122,22 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 print(outputstring)
                 count += 1
 
-        write_to_file(print_df)
+                # if count > 2:
+                #     write_to_file(print_df, file_name[5:18])
+                #     return
 
-def write_to_file(output_df: pd.DataFrame):
+        write_to_file(print_df, file_name[5:18])
+
+
+def write_to_file(output_df: pd.DataFrame, file: str):
     """
     write the analysis out put to .txt file
     :param output_df: the output dataframe
     :return: None
     """
-    output_str = output_df.to_string(index=False)
-    out_put_title = "aircraft_analysis.txt"
+    output_str = "***************** CURRENT RESULTS ******************* | ******* CUMULATIVE RESULTS *******\n"
+    output_str += output_df.to_string(index=False)
+    out_put_title = "aircraft_analysis_result_"+file+".txt"
     with open(out_put_title, 'w') as output_file:
         output_file.write(output_str)
 
@@ -208,3 +214,4 @@ def get_datetime_from_string(date_string: str) -> datetime:
 
 if __name__ == '__main__':
     analyze_aircraft_data('data/Jan15_3_hours.csv')
+    analyze_aircraft_data('data/Jan30_5_hours.csv')
