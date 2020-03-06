@@ -52,7 +52,8 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 end_time = None
 
                 # -------- init the current result data frame --------
-                col_names = ['DateLogged', 'TimeLogged', 'AircraftHex', 'Altitude', 'GroundSpeed', 'Latitude', 'Longitude']
+                col_names = ['DateLogged', 'TimeLogged', 'AircraftHex', 'Altitude', 'GroundSpeed', 'Latitude',
+                             'Longitude']
                 current_result_df = pd.DataFrame(data=data_in_interval, columns=col_names)
 
                 # reset the data frame
@@ -86,29 +87,39 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
 
                 """CUMULATIVE RESULTS"""
                 temp_df = current_result_df[['AircraftHex', 'Latitude', 'Longitude']]
-                temp_df['Latitude'] = temp_df['Latitude'].replace('', 0.0).astype(float)
-                temp_df['Longitude'] = temp_df['Longitude'].replace('', 0.0).astype(float)
-                temp_df = temp_df[(current_result_df['Latitude'] != 0.0) & (current_result_df['Longitude'] != 0.0)]
-                distance_sum = temp_df.groupby(['AircraftHex']).apply(shift_sum, axis='columns').reset_index()
+                temp_df = temp_df[(temp_df['Latitude'] != '') & (temp_df['Longitude'] != '')]
+                temp_df = temp_df.astype({'Latitude': 'float', 'Longitude': 'float'})
+                distance_sum_df = temp_df.groupby(['AircraftHex']).apply(shift_sum).reset_index()
+                distance_sum_df.columns = ['AircraftHex', 'Total_Distance']
+                distance_sum_df = distance_sum_df.sort_values('Total_Distance', ascending=False)
+                print(distance_sum_df)
                 return
 
                 # cumulative_result_df = pd.concat([cumulative_result_df, current_distance_df])
                 # print(cumulative_result_df)
 
 
-def shift_sum(df: pd.DataFrame):
-    print(df)
-    return
-    # 新增兩籃 => shift axis = 0, periods = 1
-    df[['last_lat', 'last_lon']] = df[['Latitude', 'Longitude']] = df[['Latitude', 'Longitude']].shift(axis=0, periods=1)
-    new_df = df[['last_lat', 'last_lon', 'Latitude', 'Longitude']].iloc[1, :].reset_index(drop=True)
+def shift_sum(df: pd.DataFrame) -> float:
+    # if the data frame only has one row, remove it
+    if df.shape[0] == 1:
+        return 0.0
 
-    new_df.apply(calculate_the_distance, axis=1)
+    # create two new columns(previous lat and lon) for distance calculation
+    df[['prev_lat', 'prev_lon']] = df[['Latitude', 'Longitude']].shift(axis=0, periods=1)
+
+    # calculate from the second row, and reset the index of df
+    select_df = df[['prev_lat', 'prev_lon', 'Latitude', 'Longitude']].iloc[1:].reset_index(drop=True)
+
+    # apply the calculate_the_distance() on each row
+    distance_sum = sum(select_df.apply(calculate_the_distance, axis=1))
+
+    return distance_sum
 
 
-def calculate_the_distance(last_latitude: float, last_longitude: float, current_latitude: float, current_longitude: float) -> float:
+def calculate_the_distance(row: pd.Series) -> float:
     geod = Geodesic.WGS84
-    return round(geod.Inverse(last_latitude, last_longitude, current_latitude, current_longitude)['s12'] / 1852.0, 6)
+    total_distance = round(geod.Inverse(row[0], row[1], row[2], row[3])['s12'] / 1852.0, 6)
+    return total_distance
 
 
 def get_max_value_by_type(column_name: str, df: pd.DataFrame) -> str:
