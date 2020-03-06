@@ -18,15 +18,19 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
     :return: None
     """
     if file_name is "" or file_name is None:
-        raise ValueError("file does not exist")
+        raise ValueError("file_name error: file does not exist")
+    if update_interval < 0 or update_interval > 60:
+        raise ValueError("update_interval error: update_interval should be valid minutes")
 
     with open(file_name, 'r') as input_file:
         start_time = None
         end_time = None
         data_in_interval = []
-        current_result_col_names = ['TIME', '# Craft', 'Fastest (kts)', 'Highest (ft)', 'Msgs/Sec']
-        cumulative_result_df = pd.DataFrame(columns=['#Craft', 'LongestTrack', '(nm)'])
-
+        total_number_of_aircraft = 0
+        cumulative_df_col_name = ['AircraftHex', 'Total_Distance']
+        cumulative_result_df = pd.DataFrame(columns=['AircraftHex', 'Total_Distance'])
+        final_result_col_names = ['TIME', '# Craft', 'Fastest', '(kts)', 'Highest', '(ft)', 'Msgs/Sec', '#Craft', 'LongestTrack', ' (nm)']
+        print_df = pd.DataFrame({}, columns=final_result_col_names)
         count = 0
 
         for line in input_file:
@@ -60,46 +64,84 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 data_in_interval = []
 
                 # -------- number of aircraft --------
-                craft_no_col = len(current_result_df.groupby('AircraftHex').agg(['count']))
+                craft_no_col = len(current_result_df['AircraftHex'].unique())
 
                 # -------- fastest --------
                 temp_df = current_result_df[['AircraftHex', 'GroundSpeed']]
                 temp_df = temp_df[temp_df['GroundSpeed'] != '']
-                fastest_col = get_max_value_by_type('GroundSpeed', temp_df)
+                (fastest_col_1, fastest_col_2) = get_max_value_by_type('GroundSpeed', temp_df)
 
                 # -------- Highest --------
                 temp_df = current_result_df[['AircraftHex', 'Altitude']]
                 temp_df = temp_df[temp_df['Altitude'] != '']
-                highest_col = get_max_value_by_type('Altitude', temp_df)
+                (highest_col_1, highest_col_2) = get_max_value_by_type('Altitude', temp_df)
+
 
                 # -------- Msgs / Sec --------
                 msg_per_sec_col = round(current_result_df.shape[0] / time_interval, 1)
 
-                new_df = pd.DataFrame(columns=current_result_col_names)
-                new_df.loc[0] = [time_col, craft_no_col, fastest_col, highest_col, msg_per_sec_col]
-                # current_result_df = pd.concat([current_result_df, new_df])
-
-                if count == 0:
-                    print("***************** CURRENT RESULTS ******************* | ******* CUMULATIVE RESULTS *******")
-                    print('TIME # Craft  Fastest  (kts)  Highest  (ft)  Msgs/Sec')
-
-                print(time_col, craft_no_col, fastest_col, highest_col, msg_per_sec_col)
-
                 """CUMULATIVE RESULTS"""
+                # -------- number of aircraft --------
+                total_number_of_aircraft = 0
+
+                # -------- LongestTrack --------
                 temp_df = current_result_df[['AircraftHex', 'Latitude', 'Longitude']]
                 temp_df = temp_df[(temp_df['Latitude'] != '') & (temp_df['Longitude'] != '')]
                 temp_df = temp_df.astype({'Latitude': 'float', 'Longitude': 'float'})
                 distance_sum_df = temp_df.groupby(['AircraftHex']).apply(shift_sum).reset_index()
-                distance_sum_df.columns = ['AircraftHex', 'Total_Distance']
-                distance_sum_df = distance_sum_df.sort_values('Total_Distance', ascending=False)
-                print(distance_sum_df)
-                return
+                distance_sum_df.columns = cumulative_df_col_name
+                distance_sum_df = distance_sum_df.sort_values(by=['Total_Distance'], ascending=False)
+                # print(distance_sum_df)
 
-                # cumulative_result_df = pd.concat([cumulative_result_df, current_distance_df])
-                # print(cumulative_result_df)
+                if cumulative_result_df.empty:
+                    cumulative_result_df = distance_sum_df
+                else:
+                    cumulative_result_df = pd.concat([cumulative_result_df, distance_sum_df], axis=0).groupby(['AircraftHex']).sum().reset_index()
+
+                cumulative_result_df.sort_values(by=['Total_Distance'], ascending=False, inplace=True)
+                longest_aircraft = cumulative_result_df.iloc[0]
+                longest_aircraft_1 = longest_aircraft[0]
+                longest_aircraft_2 = str(round(longest_aircraft[1], 1))
+
+                # prepare output data frame
+                total_number_of_aircraft = cumulative_result_df.shape[0]
+                current_print_list = [time_col, craft_no_col, fastest_col_1, fastest_col_2, highest_col_1, highest_col_2, msg_per_sec_col, total_number_of_aircraft, longest_aircraft_1, longest_aircraft_2]
+                current_print_series = pd.Series(current_print_list, index=print_df.columns)
+                print_df = print_df.append(current_print_series, ignore_index=True)
+
+                if count == 0:
+                    title = "\t"*2+"TIME"+"\t"*1+"# Craft Fastest (kts)"+"\t"*1+"Highest (ft)"+"\t"*1+"Msgs/Sec"+"\t"*1+"#Craft"+"\t"*1+"LongestTrack (nm)"
+                    print(title)
+
+                # print result in console
+                outputstring = time_col + "\t"*2 + str(craft_no_col) + "\t"*1 + \
+                               fastest_col_1 + "\t"*1 + str(fastest_col_2) + "\t"*2+\
+                               highest_col_1 + "\t"*1 + str(highest_col_2) + "\t"*2+\
+                               str(msg_per_sec_col) + "\t"*2 + str(total_number_of_aircraft) + "\t"*2 + \
+                               longest_aircraft_1 + "\t"*1 + longest_aircraft_2
+                print(outputstring)
+                count += 1
+
+        write_to_file(print_df)
+
+def write_to_file(output_df: pd.DataFrame):
+    """
+    write the analysis out put to .txt file
+    :param output_df: the output dataframe
+    :return: None
+    """
+    output_str = output_df.to_string(index=False)
+    out_put_title = "aircraft_analysis.txt"
+    with open(out_put_title, 'w') as output_file:
+        output_file.write(output_str)
 
 
 def shift_sum(df: pd.DataFrame) -> float:
+    """
+    Shift data frame to do distance calculation between two coordinates
+    :param df:
+    :return:
+    """
     # if the data frame only has one row, remove it
     if df.shape[0] == 1:
         return 0.0
@@ -117,12 +159,17 @@ def shift_sum(df: pd.DataFrame) -> float:
 
 
 def calculate_the_distance(row: pd.Series) -> float:
+    """
+    Calculate the distance from two coordinates
+    :param row: the pd.Series of four columns, 'prev_lat', 'prev_lon', 'Latitude', 'Longitude'
+    :return: distance in float format
+    """
     geod = Geodesic.WGS84
     total_distance = round(geod.Inverse(row[0], row[1], row[2], row[3])['s12'] / 1852.0, 6)
     return total_distance
 
 
-def get_max_value_by_type(column_name: str, df: pd.DataFrame) -> str:
+def get_max_value_by_type(column_name: str, df: pd.DataFrame) -> (str, str):
     """
     Get the maximum value of Altitude or Ground Speed
     :param column_name: string type, 'Altitude' or 'Groundspeed'
@@ -135,7 +182,7 @@ def get_max_value_by_type(column_name: str, df: pd.DataFrame) -> str:
 
     # get the max value from row 0, col all
     max_value = group_df.iloc[0, :]
-    return str(max_value[0]) + ' ' + str(math.trunc(max_value[1]))
+    return max_value[0], str(math.trunc(max_value[1]))
 
 
 def get_datetime_from_string(date_string: str) -> datetime:
