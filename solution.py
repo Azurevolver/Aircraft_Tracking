@@ -28,6 +28,7 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
         data_in_interval = []
         cumulative_df_col_name = ['AircraftHex', 'Total_Distance']
         cumulative_result_df = pd.DataFrame(columns=['AircraftHex', 'Total_Distance'])
+        total_num_aircraft = pd.DataFrame(columns=['AircraftHex'])
         final_result_col_names = ['TIME', '# Craft', 'Fastest', '(kts)', 'Highest', '(ft)', 'Msgs/Sec', '#Craft', 'LongestTrack', ' (nm)']
         print_df = pd.DataFrame({}, columns=final_result_col_names)
         count = 0
@@ -62,24 +63,33 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 # reset the data frame
                 data_in_interval = []
 
-                # -------- number of aircraft --------
-                craft_no_col = len(current_result_df['AircraftHex'].unique())
-
                 # -------- fastest --------
                 temp_df = current_result_df[['AircraftHex', 'GroundSpeed']]
                 temp_df = temp_df[temp_df['GroundSpeed'] != '']
-                (fastest_col_1, fastest_col_2) = get_max_value_by_type('GroundSpeed', temp_df)
+                (fastest_col_aircraft_id, fastest_col_speed) = get_max_value_by_type('GroundSpeed', temp_df)
 
                 # -------- Highest --------
                 temp_df = current_result_df[['AircraftHex', 'Altitude']]
                 temp_df = temp_df[temp_df['Altitude'] != '']
-                (highest_col_1, highest_col_2) = get_max_value_by_type('Altitude', temp_df)
-
+                (highest_col_aircraft_id, highest_col_altitude) = get_max_value_by_type('Altitude', temp_df)
 
                 # -------- Msgs / Sec --------
                 msg_per_sec_col = round(current_result_df.shape[0] / time_interval, 1)
 
                 """CUMULATIVE RESULTS"""
+                # -------- number of aircraft --------
+                craft_no_col = len(current_result_df['AircraftHex'].unique())
+
+                if total_num_aircraft.empty:
+                    total_num_aircraft = current_result_df[['AircraftHex']].drop_duplicates()
+                else:
+                    total_num_aircraft = pd.concat(
+                        [total_num_aircraft, current_result_df['AircraftHex']]).drop_duplicates()
+                    # print("the total_num_aircraft ", len(total_num_aircraft))
+
+                # -------- total number of aircraft --------
+                total_number_of_aircraft = total_num_aircraft.shape[0]
+
                 # -------- LongestTrack --------
                 temp_df = current_result_df[['AircraftHex', 'Latitude', 'Longitude']]
                 temp_df = temp_df[(temp_df['Latitude'] != '') & (temp_df['Longitude'] != '')]
@@ -95,14 +105,11 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
 
                 cumulative_result_df.sort_values(by=['Total_Distance'], ascending=False, inplace=True)
                 longest_aircraft = cumulative_result_df.iloc[0]
-                longest_aircraft_1 = longest_aircraft[0]
-                longest_aircraft_2 = str(round(longest_aircraft[1], 1))
-
-                # -------- total number of aircraft --------
-                total_number_of_aircraft = cumulative_result_df.shape[0]
+                longest_aircraft_aircraft_id = longest_aircraft[0]
+                longest_aircraft_distance = str(round(longest_aircraft[1], 1))
 
                 # prepare output data frame
-                current_print_list = [time_col, craft_no_col, fastest_col_1, fastest_col_2, highest_col_1, highest_col_2, msg_per_sec_col, total_number_of_aircraft, longest_aircraft_1, longest_aircraft_2]
+                current_print_list = [time_col, craft_no_col, fastest_col_aircraft_id, fastest_col_speed, highest_col_aircraft_id, highest_col_altitude, msg_per_sec_col, total_number_of_aircraft, longest_aircraft_aircraft_id, longest_aircraft_distance]
                 current_print_series = pd.Series(current_print_list, index=print_df.columns)
                 print_df = print_df.append(current_print_series, ignore_index=True)
 
@@ -113,11 +120,12 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
 
                 # print result in console
                 outputstring = time_col + "\t"*2 + str(craft_no_col) + "\t"*1 + \
-                               fastest_col_1 + "\t"*1 + str(fastest_col_2) + "\t"*2+\
-                               highest_col_1 + "\t"*1 + str(highest_col_2) + "\t"*2+\
+                               fastest_col_aircraft_id + "\t"*1 + str(fastest_col_speed) + "\t"*2+\
+                               highest_col_aircraft_id + "\t"*1 + str(highest_col_altitude) + "\t"*2+\
                                str(msg_per_sec_col) + "\t"*2 + str(total_number_of_aircraft) + "\t"*2 + \
-                               longest_aircraft_1 + "\t"*1 + longest_aircraft_2
+                               longest_aircraft_aircraft_id + "\t"*1 + longest_aircraft_distance
                 print(outputstring)
+
                 count += 1
 
         write_to_file(print_df, file_name[5:18])
