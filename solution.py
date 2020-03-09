@@ -52,7 +52,7 @@ def analyze_aircraft_data(file_name: str, update_interval=5):
                 time_col = end_time.strftime("%m/%d %H:%M:%S")
 
                 # -------- reset start and end time --------
-                start_time = end_time
+                start_time = None
                 end_time = None
 
                 # -------- init the current result data frame --------
